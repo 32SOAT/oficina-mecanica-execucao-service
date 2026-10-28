@@ -1,20 +1,15 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { EXECUCAO_STORE } from '../fila/execucao.store';
+import { DynamoDbExecucaoStore } from './dynamodb-execucao.store';
 
 @Module({
-  imports: [
-    TypeOrmModule.forRootAsync({
-      useFactory: () => ({
-        type: 'postgres' as const,
-        host: process.env.POSTGRES_HOST ?? 'localhost',
-        port: Number.parseInt(process.env.POSTGRES_PORT ?? '5434', 10),
-        username: process.env.POSTGRES_USER ?? 'oficina',
-        password: process.env.POSTGRES_PASSWORD ?? 'oficina123',
-        database: process.env.POSTGRES_DB ?? 'oficina_execucao',
-        autoLoadEntities: true,
-        synchronize: true,
-      }),
-    }),
+  providers: [
+    DynamoDbExecucaoStore,
+    {
+      provide: EXECUCAO_STORE,
+      useExisting: DynamoDbExecucaoStore,
+    },
   ],
+  exports: [EXECUCAO_STORE],
 })
 export class DatabaseModule {}

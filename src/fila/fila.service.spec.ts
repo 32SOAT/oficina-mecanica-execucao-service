@@ -1,31 +1,27 @@
 import { NotFoundException } from '@nestjs/common';
+import { ExecucaoItem } from './execucao.entity';
+import { ExecucaoStore } from './execucao.store';
 import { FilaService } from './fila.service';
-import { ExecucaoEntity } from './execucao.entity';
 
 describe('FilaService', () => {
-  const rows: ExecucaoEntity[] = [];
-  const repo = {
-    findOne: jest.fn(({ where }: { where: { osId: string; etapa: string } }) =>
+  const rows: ExecucaoItem[] = [];
+  const store: ExecucaoStore = {
+    findOne: (osId, etapa) =>
       Promise.resolve(
-        rows.find(
-          (row) => row.osId === where.osId && row.etapa === where.etapa,
-        ) ?? null,
+        rows.find((row) => row.osId === osId && row.etapa === etapa) ?? null,
       ),
-    ),
-    find: jest.fn(({ where }: { where: { osId: string } }) =>
-      Promise.resolve(rows.filter((row) => row.osId === where.osId)),
-    ),
-    create: jest.fn((input: ExecucaoEntity) => input),
-    save: jest.fn((input: ExecucaoEntity) => {
+    findByOs: (osId) =>
+      Promise.resolve(rows.filter((row) => row.osId === osId)),
+    save: (item) => {
       const index = rows.findIndex(
-        (row) => row.osId === input.osId && row.etapa === input.etapa,
+        (row) => row.osId === item.osId && row.etapa === item.etapa,
       );
-      if (index >= 0) rows[index] = input;
-      else rows.push(input);
-      return Promise.resolve(input);
-    }),
+      if (index >= 0) rows[index] = item;
+      else rows.push(item);
+      return Promise.resolve(item);
+    },
   };
-  const service = new FilaService(repo as never);
+  const service = new FilaService(store);
 
   it('opens diagnosis once and completes it', async () => {
     const aberta = await service.abrir('os-1', 'DIAGNOSTICO');

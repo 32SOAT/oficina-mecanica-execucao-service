@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ExecucaoEntity } from './execucao.entity';
+import { DatabaseModule } from '../database/database.module';
 import { FilaController } from './fila.controller';
 import { FilaService } from './fila.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExecucaoEntity])],
+  imports: [DatabaseModule],
   controllers: [FilaController],
   providers: [FilaService],
 })

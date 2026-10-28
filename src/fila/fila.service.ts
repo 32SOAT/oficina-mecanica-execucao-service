@@ -1,33 +1,42 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { EtapaExecucao, ExecucaoEntity } from './execucao.entity';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { EtapaExecucao, ExecucaoItem } from './execucao.entity';
+import { EXECUCAO_STORE, ExecucaoStore } from './execucao.store';
 
 @Injectable()
 export class FilaService {
   constructor(
-    @InjectRepository(ExecucaoEntity)
-    private readonly execucoes: Repository<ExecucaoEntity>,
+    @Inject(EXECUCAO_STORE)
+    private readonly execucoes: ExecucaoStore,
   ) {}
 
-  async abrir(osId: string, etapa: EtapaExecucao): Promise<ExecucaoEntity> {
-    const existente = await this.execucoes.findOne({ where: { osId, etapa } });
+  async abrir(osId: string, etapa: EtapaExecucao): Promise<ExecucaoItem> {
+    const existente = await this.execucoes.findOne(osId, etapa);
     if (existente) return existente;
-    return this.execucoes.save(
-      this.execucoes.create({ osId, etapa, status: 'ABERTA' }),
-    );
+    const agora = new Date().toISOString();
+    return this.execucoes.save({
+      id: randomUUID(),
+      osId,
+      etapa,
+      status: 'ABERTA',
+      createdAt: agora,
+      updatedAt: agora,
+    });
   }
 
-  async concluir(osId: string, etapa: EtapaExecucao): Promise<ExecucaoEntity> {
-    const execucao = await this.execucoes.findOne({ where: { osId, etapa } });
+  async concluir(osId: string, etapa: EtapaExecucao): Promise<ExecucaoItem> {
+    const execucao = await this.execucoes.findOne(osId, etapa);
     if (!execucao) {
       throw new NotFoundException(`${etapa} não encontrada para a OS`);
     }
-    execucao.status = 'CONCLUIDA';
-    return this.execucoes.save(execucao);
+    return this.execucoes.save({
+      ...execucao,
+      status: 'CONCLUIDA',
+      updatedAt: new Date().toISOString(),
+    });
   }
 
-  listar(osId: string): Promise<ExecucaoEntity[]> {
-    return this.execucoes.find({ where: { osId } });
+  listar(osId: string): Promise<ExecucaoItem[]> {
+    return this.execucoes.findByOs(osId);
   }
 }

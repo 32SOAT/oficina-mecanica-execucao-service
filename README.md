@@ -19,7 +19,7 @@ A divisão dos três serviços e a razão de cada banco ficar na própria aplica
 
 ## Banco
 
-Postgres `oficina_execucao` neste repositório, porta **5434**. O schema é criado na subida da aplicação. Na AWS a persistência prevista é DynamoDB. O contrato local continua o mesmo: etapa e status por `osId`. Não há conexão com o banco da OS nem com o do billing.
+DynamoDB neste repositório. Localmente o container `amazon/dynamodb-local` escuta a porta **8000**. A tabela `execucao` é criada na subida da aplicação, com chave `osId` + `etapa`. Na AWS o mesmo código usa a tabela real: basta não definir `DYNAMODB_ENDPOINT`. Não há conexão com o banco da OS nem com o do billing.
 
 ## Execução local
 
