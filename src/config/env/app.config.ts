@@ -19,4 +19,10 @@ export const envValidationSchema = Joi.object({
     .default('development'),
   APP_PORT: Joi.number().default(3003),
   SERVICE_NAME: Joi.string().default('execucao-service'),
+  DYNAMODB_ENDPOINT: Joi.string().uri().allow('').optional(),
+  DYNAMODB_REGION: Joi.string().default('us-east-1'),
+  DYNAMODB_TABLE: Joi.string().default('execucao'),
+  AWS_ACCESS_KEY_ID: Joi.string().default('local'),
+  AWS_SECRET_ACCESS_KEY: Joi.string().default('local'),
+  SAGA_TOKEN: Joi.string().default('oficina-local'),
 });
