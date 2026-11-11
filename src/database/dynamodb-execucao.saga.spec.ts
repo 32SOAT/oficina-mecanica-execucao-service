@@ -91,9 +91,9 @@ describe('DynamoDbExecucaoStore Saga transactions', () => {
     });
 
     const transaction = send.mock.calls[0][0] as TransactWriteCommand;
-    expect(transaction.input.TransactItems?.[0].Update?.ConditionExpression).toBe(
-      '#status = :expectedStatus',
-    );
+    expect(
+      transaction.input.TransactItems?.[0].Update?.ConditionExpression,
+    ).toBe('#status = :expectedStatus');
     expect(
       transaction.input.TransactItems?.[0].Update?.ExpressionAttributeValues,
     ).toMatchObject({ ':expectedStatus': 'ABERTA', ':status': 'CONCLUIDA' });

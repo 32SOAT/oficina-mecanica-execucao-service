@@ -2,11 +2,14 @@ import { envValidationSchema } from './app.config';
 
 describe('Execution SQS environment', () => {
   it('keeps SQS worker disabled when queue configuration is absent', () => {
-    const { error, value } = envValidationSchema.validate({});
+    const validation = envValidationSchema.validate({});
+    const value: unknown = validation.value;
 
-    expect(error).toBeUndefined();
-    expect(value.SQS_WORKER_ENABLED).toBe(false);
-    expect(value.DYNAMODB_SAGA_COMMANDS_TABLE).toBe('execucao_saga_commands');
+    expect(validation.error).toBeUndefined();
+    expect(value).toMatchObject({
+      SQS_WORKER_ENABLED: false,
+      DYNAMODB_SAGA_COMMANDS_TABLE: 'execucao_saga_commands',
+    });
   });
 
   it('requires both queue URLs when the worker is enabled', () => {

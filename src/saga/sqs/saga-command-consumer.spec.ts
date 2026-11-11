@@ -52,7 +52,7 @@ describe('Execution SagaCommandConsumer', () => {
           resultsQueueUrl: 'results',
           pollIntervalMs: 1000,
         },
-      }) as never,
+      }),
     );
 
     await consumer.processMessage({
@@ -69,7 +69,9 @@ describe('Execution SagaCommandConsumer', () => {
 
   it('does not delete the command when result publishing fails', async () => {
     const client = {
-      send: jest.fn().mockRejectedValue(new Error('unavailable')),
+      send: jest
+        .fn<Promise<unknown>, [unknown]>()
+        .mockRejectedValue(new Error('unavailable')),
     };
     const handler = {
       processSagaCommand: jest.fn().mockResolvedValue({
@@ -82,7 +84,7 @@ describe('Execution SagaCommandConsumer', () => {
     const consumer = new SagaCommandConsumer(
       client as unknown as SQSClient,
       handler as never,
-      new ConfigService({ sqs: { enabled: true } }) as never,
+      new ConfigService({ sqs: { enabled: true } }),
     );
 
     await expect(
@@ -102,7 +104,7 @@ describe('Execution SagaCommandConsumer', () => {
     const consumer = new SagaCommandConsumer(
       client as unknown as SQSClient,
       handler as never,
-      new ConfigService({ sqs: { enabled: true } }) as never,
+      new ConfigService({ sqs: { enabled: true } }),
     );
 
     await consumer.processMessage({

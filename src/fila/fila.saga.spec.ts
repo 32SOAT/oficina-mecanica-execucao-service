@@ -1,5 +1,5 @@
 import { FilaService } from './fila.service';
-import { ExecucaoStore } from './execucao.store';
+import { CommitSagaCommandInput, ExecucaoStore } from './execucao.store';
 import { SagaCommandMessage, SagaResultMessage } from '../saga/saga-message';
 import { sagaCommandFingerprint } from '../saga/saga-command.utils';
 
@@ -18,30 +18,31 @@ const command: SagaCommandMessage = {
 
 describe('FilaService Saga commands', () => {
   it('opens an execution step and stores its command result idempotently', async () => {
+    const commitSagaCommand = jest
+      .fn<Promise<void>, [CommitSagaCommandInput]>()
+      .mockResolvedValue(undefined);
     const store: ExecucaoStore = {
       findOne: jest.fn().mockResolvedValue(null),
       save: jest.fn(),
       findByOs: jest.fn().mockResolvedValue([]),
       findSagaCommand: jest.fn().mockResolvedValue(null),
-      commitSagaCommand: jest.fn().mockResolvedValue(undefined),
+      commitSagaCommand,
     };
     const service = new FilaService(store);
 
     const result = await service.processSagaCommand(command);
 
     expect(result.outcome).toBe('CONCLUIDA');
-    expect(store.commitSagaCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        commandId: command.commandId,
-        mutation: expect.objectContaining({
-          kind: 'OPEN',
-          item: expect.objectContaining({ status: 'ABERTA' }),
-        }),
-      }),
-    );
+    expect(commitSagaCommand).toHaveBeenCalledTimes(1);
+    expect(commitSagaCommand.mock.calls[0][0]).toMatchObject({
+      commandId: command.commandId,
+      mutation: { kind: 'OPEN', item: { status: 'ABERTA' } },
+    });
   });
 
   it('returns a previously persisted result without applying the command again', async () => {
+    const findOne = jest.fn();
+    const commitSagaCommand = jest.fn();
     const priorResult: SagaResultMessage = {
       messageId: '00000000-0000-4000-8000-000000000006',
       commandId: command.commandId,
@@ -56,31 +57,34 @@ describe('FilaService Saga commands', () => {
       payload: {},
     };
     const store: ExecucaoStore = {
-      findOne: jest.fn(),
+      findOne,
       save: jest.fn(),
       findByOs: jest.fn(),
       findSagaCommand: jest.fn().mockResolvedValue({
         fingerprint: sagaCommandFingerprint(command),
         result: priorResult,
       }),
-      commitSagaCommand: jest.fn(),
+      commitSagaCommand,
     };
     const service = new FilaService(store);
 
     await expect(service.processSagaCommand(command)).resolves.toEqual(
       priorResult,
     );
-    expect(store.findOne).not.toHaveBeenCalled();
-    expect(store.commitSagaCommand).not.toHaveBeenCalled();
+    expect(findOne).not.toHaveBeenCalled();
+    expect(commitSagaCommand).not.toHaveBeenCalled();
   });
 
   it('records an incompatible completion as a non-retryable result without changing execution state', async () => {
+    const commitSagaCommand = jest
+      .fn<Promise<void>, [CommitSagaCommandInput]>()
+      .mockResolvedValue(undefined);
     const store: ExecucaoStore = {
       findOne: jest.fn().mockResolvedValue(null),
       save: jest.fn(),
       findByOs: jest.fn().mockResolvedValue([]),
       findSagaCommand: jest.fn().mockResolvedValue(null),
-      commitSagaCommand: jest.fn().mockResolvedValue(undefined),
+      commitSagaCommand,
     };
     const service = new FilaService(store);
     const completion = {
@@ -94,9 +98,11 @@ describe('FilaService Saga commands', () => {
     expect(result.outcome).toBe('FALHA');
     if (result.outcome === 'FALHA')
       expect(result.payload.retryable).toBe(false);
-    expect(store.commitSagaCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ commandId: command.commandId, mutation: null }),
-    );
+    expect(commitSagaCommand).toHaveBeenCalledTimes(1);
+    expect(commitSagaCommand.mock.calls[0][0]).toMatchObject({
+      commandId: command.commandId,
+      mutation: null,
+    });
   });
 
   it('rejects reuse of a commandId for another command payload', async () => {
@@ -118,6 +124,9 @@ describe('FilaService Saga commands', () => {
   });
 
   it('completes an open step through the transactional mutation', async () => {
+    const commitSagaCommand = jest
+      .fn<Promise<void>, [CommitSagaCommandInput]>()
+      .mockResolvedValue(undefined);
     const store: ExecucaoStore = {
       findOne: jest.fn().mockResolvedValue({
         id: '00000000-0000-4000-8000-000000000007',
@@ -130,7 +139,7 @@ describe('FilaService Saga commands', () => {
       save: jest.fn(),
       findByOs: jest.fn().mockResolvedValue([]),
       findSagaCommand: jest.fn().mockResolvedValue(null),
-      commitSagaCommand: jest.fn().mockResolvedValue(undefined),
+      commitSagaCommand,
     };
     const service = new FilaService(store);
 
@@ -140,17 +149,16 @@ describe('FilaService Saga commands', () => {
     });
 
     expect(result.outcome).toBe('CONCLUIDA');
-    expect(store.commitSagaCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        mutation: expect.objectContaining({
-          kind: 'COMPLETE',
-          item: expect.objectContaining({ status: 'CONCLUIDA' }),
-        }),
-      }),
-    );
+    expect(commitSagaCommand).toHaveBeenCalledTimes(1);
+    expect(commitSagaCommand.mock.calls[0][0]).toMatchObject({
+      mutation: { kind: 'COMPLETE', item: { status: 'CONCLUIDA' } },
+    });
   });
 
   it('does not reopen a completed step', async () => {
+    const commitSagaCommand = jest
+      .fn<Promise<void>, [CommitSagaCommandInput]>()
+      .mockResolvedValue(undefined);
     const store: ExecucaoStore = {
       findOne: jest.fn().mockResolvedValue({
         id: '00000000-0000-4000-8000-000000000007',
@@ -163,15 +171,16 @@ describe('FilaService Saga commands', () => {
       save: jest.fn(),
       findByOs: jest.fn().mockResolvedValue([]),
       findSagaCommand: jest.fn().mockResolvedValue(null),
-      commitSagaCommand: jest.fn().mockResolvedValue(undefined),
+      commitSagaCommand,
     };
     const service = new FilaService(store);
 
     const result = await service.processSagaCommand(command);
 
     expect(result.outcome).toBe('FALHA');
-    expect(store.commitSagaCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ mutation: null }),
-    );
+    expect(commitSagaCommand).toHaveBeenCalledTimes(1);
+    expect(commitSagaCommand.mock.calls[0][0]).toMatchObject({
+      mutation: null,
+    });
   });
 });
