@@ -7,5 +7,6 @@ import { FilaService } from './fila.service';
   imports: [DatabaseModule],
   controllers: [FilaController],
   providers: [FilaService],
+  exports: [FilaService],
 })
 export class FilaModule {}

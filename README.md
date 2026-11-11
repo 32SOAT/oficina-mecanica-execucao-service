@@ -8,7 +8,7 @@ A divisão dos três serviços e a razão de cada banco ficar na própria aplica
 
 - Uma etapa por ordem: `DIAGNOSTICO` ou `REPARO`.
 - Situação da etapa: `ABERTA` ou `CONCLUIDA`.
-- A OS abre a etapa e a conclui. A chamada traz `osId` e a etapa, com o header `x-saga-token`.
+- O worker SQS da Execução aplica os comandos da Saga usando `osId` e etapa. O serviço persiste o resultado idempotente por `commandId` e o devolve à fila da OS.
 
 ## O que não fica aqui
 
@@ -21,6 +21,14 @@ A divisão dos três serviços e a razão de cada banco ficar na própria aplica
 
 DynamoDB neste repositório. Localmente o container `amazon/dynamodb-local` escuta a porta **8000**. A tabela `execucao` é criada na subida da aplicação, com chave `osId` + `etapa`. Na AWS o mesmo código usa a tabela real: basta não definir `DYNAMODB_ENDPOINT`. Não há conexão com o banco da OS nem com o do billing.
 
+O worker da Saga cria a tabela `execucao_saga_commands` (configurável por `DYNAMODB_SAGA_COMMANDS_TABLE`) para deduplicar `commandId` e guardar o resultado. A gravação do marcador e a abertura/conclusão de etapa são feitas em uma única transação DynamoDB.
+
+## Mensageria da Saga
+
+O worker SQS aceita abrir e concluir diagnóstico/reparo. A mudança na tabela `execucao` e o marcador idempotente por `commandId` são gravados na mesma transação DynamoDB. Em uma redelivery ele reutiliza o resultado persistido; só confirma a mensagem depois de publicar o resultado na fila da OS. Mensagens inválidas seguem para a DLQ pela política de redrive.
+
+O `.env.example` inclui endpoint, região e URLs das filas FIFO. Para iniciar o worker, defina `SQS_WORKER_ENABLED=true` depois de copiar o arquivo para `.env` e confirmar que filas, DLQs e permissões já estão disponíveis. Localmente, as filas são criadas pelo Floci no compose do OS Service (`docker compose up -d db floci`, dentro de `oficina-mecanica-os-service`). Em AWS, configure as URLs de saída do Terraform, deixe `SQS_ENDPOINT_URL` vazio/ausente e use a role IAM do serviço. A OS publica comandos pela outbox SQS. Consulte o [guia de operação da Saga](../oficina-mecanica-os-service/docs/operacao-saga-sqs.md) para a ordem de rollout, reconciliação e redrive seguro.
+
 ## Execução local
 
 ```bash
@@ -32,7 +40,7 @@ npm run start:dev
 
 - API: http://localhost:3003/api
 - Health: http://localhost:3003/api/v1/health
-- A OS abre `DIAGNOSTICO` e depois `REPARO` em `POST /api/v1/execucoes`
-- A OS conclui a etapa em `POST /api/v1/execucoes/:osId/concluir`
+- A OS envia comandos SQS para abrir `DIAGNOSTICO` e depois `REPARO`; o worker aplica as etapas no DynamoDB e publica os resultados para a fila da OS.
+- A conclusão de cada etapa também chega por comando SQS, com o mesmo fluxo de resultado correlacionado.
 
-O header das chamadas é `x-saga-token: oficina-local`.
+As chamadas HTTP internas legadas, quando usadas diretamente, exigem `x-saga-token: oficina-local`; o fluxo da Saga usa IAM e filas SQS.
