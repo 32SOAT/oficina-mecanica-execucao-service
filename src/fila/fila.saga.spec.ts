@@ -212,6 +212,37 @@ describe('FilaService Saga commands', () => {
     });
   });
 
+  it('acknowledges a compensation for an already open stage without changing it again', async () => {
+    const commitSagaCommand = jest
+      .fn<Promise<void>, [CommitSagaCommandInput]>()
+      .mockResolvedValue(undefined);
+    const store: ExecucaoStore = {
+      findOne: jest.fn().mockResolvedValue({
+        id: '00000000-0000-4000-8000-000000000007',
+        osId: command.osId,
+        etapa: 'DIAGNOSTICO',
+        status: 'ABERTA',
+        createdAt: command.occurredAt,
+        updatedAt: command.occurredAt,
+      }),
+      save: jest.fn(),
+      findByOs: jest.fn(),
+      findSagaCommand: jest.fn().mockResolvedValue(null),
+      commitSagaCommand,
+    };
+
+    const result = await new FilaService(store).processSagaCommand({
+      ...command,
+      type: 'EXECUTION_REOPEN',
+    });
+
+    expect(result.outcome).toBe('CONCLUIDA');
+    expect(commitSagaCommand.mock.calls[0][0]).toMatchObject({
+      mutation: null,
+      result: { outcome: 'CONCLUIDA' },
+    });
+  });
+
   it('does not create a missing execution stage during compensation', async () => {
     const commitSagaCommand = jest
       .fn<Promise<void>, [CommitSagaCommandInput]>()
