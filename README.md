@@ -25,7 +25,9 @@ O worker da Saga cria a tabela `execucao_saga_commands` (configurável por `DYNA
 
 ## Mensageria da Saga
 
-O worker SQS aceita abrir e concluir diagnóstico/reparo. A mudança na tabela `execucao` e o marcador idempotente por `commandId` são gravados na mesma transação DynamoDB. Em uma redelivery ele reutiliza o resultado persistido; só confirma a mensagem depois de publicar o resultado na fila da OS. Mensagens inválidas seguem para a DLQ pela política de redrive.
+O worker SQS aceita abrir, concluir e reabrir diagnóstico/reparo. `EXECUTION_REOPEN` é a compensação enviada pela OS quando a etapa seguinte do Billing falha; ela muda `CONCLUIDA` para `ABERTA` somente com atualização condicional. A mudança na tabela `execucao` e o marcador idempotente por `commandId` são gravados na mesma transação DynamoDB. Em uma redelivery ele reutiliza o resultado persistido; só confirma a mensagem depois de publicar o resultado na fila da OS. Mensagens inválidas seguem para a DLQ pela política de redrive.
+
+Uma nova conclusão com outro `commandId` para etapa já `CONCLUIDA` retorna falha de negócio. O replay do comando original retorna seu resultado gravado, sem repetir a mutação.
 
 O `.env.example` inclui endpoint, região e URLs das filas FIFO. Para iniciar o worker, defina `SQS_WORKER_ENABLED=true` depois de copiar o arquivo para `.env` e confirmar que filas, DLQs e permissões já estão disponíveis. Localmente, as filas são criadas pelo Floci no compose do OS Service (`docker compose up -d db floci`, dentro de `oficina-mecanica-os-service`). Em AWS, configure as URLs de saída do Terraform, deixe `SQS_ENDPOINT_URL` vazio/ausente e use a role IAM do serviço. A OS publica comandos pela outbox SQS. Consulte o [guia de operação da Saga](../oficina-mecanica-os-service/docs/operacao-saga-sqs.md) para a ordem de rollout, reconciliação e redrive seguro.
 

@@ -99,4 +99,48 @@ describe('DynamoDbExecucaoStore Saga transactions', () => {
     ).toMatchObject({ ':expectedStatus': 'ABERTA', ':status': 'CONCLUIDA' });
     expect(transaction.input.TransactItems).toHaveLength(2);
   });
+
+  it('atomically reopens only a completed stage and records the compensation result', async () => {
+    const send = jest
+      .spyOn(DynamoDBDocumentClient.prototype, 'send')
+      .mockResolvedValue({} as never);
+    const store = new DynamoDbExecucaoStore();
+    const result: SagaResultMessage = {
+      messageId: '00000000-0000-4000-8000-000000000006',
+      commandId: '00000000-0000-4000-8000-000000000002',
+      sagaId: '00000000-0000-4000-8000-000000000003',
+      osId: '00000000-0000-4000-8000-000000000004',
+      occurredAt: '2026-11-08T10:01:00.000Z',
+      correlationId: '00000000-0000-4000-8000-000000000003',
+      causationId: '00000000-0000-4000-8000-000000000001',
+      schemaVersion: 1,
+      type: 'SAGA_STEP_RESULT',
+      outcome: 'CONCLUIDA',
+      payload: {},
+    };
+    await store.commitSagaCommand({
+      commandId: result.commandId,
+      fingerprint: 'fingerprint',
+      result,
+      mutation: {
+        kind: 'REOPEN',
+        item: {
+          id: '00000000-0000-4000-8000-000000000007',
+          osId: result.osId,
+          etapa: 'DIAGNOSTICO',
+          status: 'ABERTA',
+          createdAt: result.occurredAt,
+          updatedAt: result.occurredAt,
+        },
+      },
+    });
+    const transaction = send.mock.calls[0][0] as TransactWriteCommand;
+    expect(transaction.input.TransactItems).toHaveLength(2);
+    expect(
+      transaction.input.TransactItems?.[0].Update?.ExpressionAttributeValues,
+    ).toMatchObject({
+      ':expectedStatus': 'CONCLUIDA',
+      ':status': 'ABERTA',
+    });
+  });
 });

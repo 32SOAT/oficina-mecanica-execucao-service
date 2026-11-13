@@ -88,7 +88,8 @@ export class FilaService {
   }> {
     if (
       command.type !== SagaCommandType.ExecutionOpen &&
-      command.type !== SagaCommandType.ExecutionComplete
+      command.type !== SagaCommandType.ExecutionComplete &&
+      command.type !== SagaCommandType.ExecutionReopen
     ) {
       return {
         mutation: null,
@@ -102,6 +103,39 @@ export class FilaService {
 
     const etapa = command.payload.etapa;
     const existing = await this.execucoes.findOne(command.osId, etapa);
+    if (command.type === SagaCommandType.ExecutionReopen) {
+      if (!existing) {
+        return {
+          mutation: null,
+          failure: {
+            code: 'ETAPA_NAO_ENCONTRADA',
+            message: 'Etapa não encontrada para compensação',
+            retryable: false,
+          },
+        };
+      }
+      if (existing.status === 'ABERTA') return { mutation: null };
+      if (existing.status !== 'CONCLUIDA') {
+        return {
+          mutation: null,
+          failure: {
+            code: 'ETAPA_ESTADO_INCOMPATIVEL',
+            message: 'Estado atual não permite reabertura',
+            retryable: false,
+          },
+        };
+      }
+      return {
+        mutation: {
+          kind: 'REOPEN',
+          item: {
+            ...existing,
+            status: 'ABERTA',
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      };
+    }
     if (command.type === SagaCommandType.ExecutionOpen) {
       if (existing?.status === 'ABERTA') {
         return { mutation: null };
@@ -154,7 +188,14 @@ export class FilaService {
       };
     }
     if (existing.status === 'CONCLUIDA') {
-      return { mutation: null };
+      return {
+        mutation: null,
+        failure: {
+          code: 'ETAPA_JA_CONCLUIDA',
+          message: 'Etapa já concluída por outro comando',
+          retryable: false,
+        },
+      };
     }
     if (existing.status !== 'ABERTA') {
       return {

@@ -18,6 +18,23 @@ describe('Execution Saga command contract', () => {
     expect(isSagaCommandMessage(command)).toBe(true);
   });
 
+  it('accepts EXECUTION_REOPEN with a valid stage and rejects an empty payload', () => {
+    expect(
+      isSagaCommandMessage({
+        ...command,
+        type: 'EXECUTION_REOPEN',
+        payload: { etapa: 'DIAGNOSTICO' },
+      }),
+    ).toBe(true);
+    expect(
+      isSagaCommandMessage({
+        ...command,
+        type: 'EXECUTION_REOPEN',
+        payload: {},
+      }),
+    ).toBe(false);
+  });
+
   it('rejects unknown versions, commands from another consumer, and bad steps', () => {
     expect(isSagaCommandMessage({ ...command, schemaVersion: 2 })).toBe(false);
     expect(

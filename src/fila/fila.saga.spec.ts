@@ -183,4 +183,75 @@ describe('FilaService Saga commands', () => {
       mutation: null,
     });
   });
+
+  it('reopens a completed execution stage as an idempotent Saga compensation', async () => {
+    const commitSagaCommand = jest
+      .fn<Promise<void>, [CommitSagaCommandInput]>()
+      .mockResolvedValue(undefined);
+    const store: ExecucaoStore = {
+      findOne: jest.fn().mockResolvedValue({
+        id: '00000000-0000-4000-8000-000000000007',
+        osId: command.osId,
+        etapa: 'DIAGNOSTICO',
+        status: 'CONCLUIDA',
+        createdAt: command.occurredAt,
+        updatedAt: command.occurredAt,
+      }),
+      save: jest.fn(),
+      findByOs: jest.fn(),
+      findSagaCommand: jest.fn().mockResolvedValue(null),
+      commitSagaCommand,
+    };
+    const result = await new FilaService(store).processSagaCommand({
+      ...command,
+      type: 'EXECUTION_REOPEN',
+    });
+    expect(result.outcome).toBe('CONCLUIDA');
+    expect(commitSagaCommand.mock.calls[0][0]).toMatchObject({
+      mutation: { kind: 'REOPEN', item: { status: 'ABERTA' } },
+    });
+  });
+
+  it('does not create a missing execution stage during compensation', async () => {
+    const commitSagaCommand = jest
+      .fn<Promise<void>, [CommitSagaCommandInput]>()
+      .mockResolvedValue(undefined);
+    const store: ExecucaoStore = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save: jest.fn(),
+      findByOs: jest.fn(),
+      findSagaCommand: jest.fn().mockResolvedValue(null),
+      commitSagaCommand,
+    };
+    const result = await new FilaService(store).processSagaCommand({
+      ...command,
+      type: 'EXECUTION_REOPEN',
+    });
+    expect(result.outcome).toBe('FALHA');
+    expect(commitSagaCommand.mock.calls[0][0]).toMatchObject({
+      mutation: null,
+    });
+  });
+
+  it('rejects a new completion command for an already completed stage', async () => {
+    const store: ExecucaoStore = {
+      findOne: jest.fn().mockResolvedValue({
+        id: '00000000-0000-4000-8000-000000000007',
+        osId: command.osId,
+        etapa: 'DIAGNOSTICO',
+        status: 'CONCLUIDA',
+        createdAt: command.occurredAt,
+        updatedAt: command.occurredAt,
+      }),
+      save: jest.fn(),
+      findByOs: jest.fn(),
+      findSagaCommand: jest.fn().mockResolvedValue(null),
+      commitSagaCommand: jest.fn(),
+    };
+    const result = await new FilaService(store).processSagaCommand({
+      ...command,
+      type: 'EXECUTION_COMPLETE',
+    });
+    expect(result.outcome).toBe('FALHA');
+  });
 });

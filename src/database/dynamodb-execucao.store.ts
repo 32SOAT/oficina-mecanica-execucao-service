@@ -148,7 +148,11 @@ export class DynamoDbExecucaoStore implements ExecucaoStore, OnModuleInit {
         },
       });
     }
-    if (input.mutation?.kind === 'COMPLETE') {
+    if (
+      input.mutation?.kind === 'COMPLETE' ||
+      input.mutation?.kind === 'REOPEN'
+    ) {
+      const reopen = input.mutation.kind === 'REOPEN';
       transactions.push({
         Update: {
           TableName: this.table,
@@ -163,9 +167,9 @@ export class DynamoDbExecucaoStore implements ExecucaoStore, OnModuleInit {
             '#updatedAt': 'updatedAt',
           },
           ExpressionAttributeValues: {
-            ':status': 'CONCLUIDA',
+            ':status': reopen ? 'ABERTA' : 'CONCLUIDA',
             ':updatedAt': input.mutation.item.updatedAt,
-            ':expectedStatus': 'ABERTA',
+            ':expectedStatus': reopen ? 'CONCLUIDA' : 'ABERTA',
           },
         },
       });

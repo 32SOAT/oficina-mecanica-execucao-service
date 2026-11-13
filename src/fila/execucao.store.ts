@@ -9,6 +9,7 @@ export type PersistedSagaCommand = {
 export type SagaExecutionMutation =
   | { kind: 'OPEN'; item: ExecucaoItem }
   | { kind: 'COMPLETE'; item: ExecucaoItem }
+  | { kind: 'REOPEN'; item: ExecucaoItem }
   | null;
 
 export type CommitSagaCommandInput = {
