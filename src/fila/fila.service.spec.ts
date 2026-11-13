@@ -20,6 +20,8 @@ describe('FilaService', () => {
       else rows.push(item);
       return Promise.resolve(item);
     },
+    findSagaCommand: () => Promise.resolve(null),
+    commitSagaCommand: () => Promise.resolve(),
   };
   const service = new FilaService(store);
 
