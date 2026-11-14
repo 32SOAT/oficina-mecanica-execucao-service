@@ -37,13 +37,18 @@ export class DynamoDbExecucaoStore implements ExecucaoStore, OnModuleInit {
   private readonly documents: DynamoDBDocumentClient;
 
   constructor() {
+    const endpoint = process.env.DYNAMODB_ENDPOINT || undefined;
     this.client = new DynamoDBClient({
       region: process.env.DYNAMODB_REGION ?? 'us-east-1',
-      endpoint: process.env.DYNAMODB_ENDPOINT || undefined,
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'local',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'local',
-      },
+      endpoint,
+      ...(endpoint
+        ? {
+            credentials: {
+              accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? 'local',
+              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? 'local',
+            },
+          }
+        : {}),
     });
     this.documents = DynamoDBDocumentClient.from(this.client);
   }
