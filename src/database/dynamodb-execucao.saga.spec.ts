@@ -1,3 +1,4 @@
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDbExecucaoStore } from './dynamodb-execucao.store';
@@ -5,6 +6,19 @@ import { SagaResultMessage } from '../saga/saga-message';
 
 describe('DynamoDbExecucaoStore Saga transactions', () => {
   afterEach(() => jest.restoreAllMocks());
+
+  it('uses Terraform-managed tables in AWS without creating them at startup', async () => {
+    const endpoint = process.env.DYNAMODB_ENDPOINT;
+    delete process.env.DYNAMODB_ENDPOINT;
+    try {
+      const send = jest.spyOn(DynamoDBClient.prototype, 'send');
+      await new DynamoDbExecucaoStore().onModuleInit();
+      expect(send).not.toHaveBeenCalled();
+    } finally {
+      if (endpoint === undefined) delete process.env.DYNAMODB_ENDPOINT;
+      else process.env.DYNAMODB_ENDPOINT = endpoint;
+    }
+  });
 
   it('writes the execution transition and command result marker atomically', async () => {
     const send = jest

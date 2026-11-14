@@ -54,6 +54,7 @@ export class DynamoDbExecucaoStore implements ExecucaoStore, OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
+    if (!process.env.DYNAMODB_ENDPOINT) return;
     await this.ensureTable(
       this.table,
       [
