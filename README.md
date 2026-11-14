@@ -21,13 +21,13 @@ A divisão dos três serviços e a razão de cada banco ficar na própria aplica
 
 DynamoDB neste repositório. Localmente o container `amazon/dynamodb-local` escuta a porta **8000**. A tabela `execucao` é criada na subida da aplicação, com chave `osId` + `etapa`. Na AWS o mesmo código usa a tabela real: basta não definir `DYNAMODB_ENDPOINT`. Não há conexão com o banco da OS nem com o do billing.
 
-No Kubernetes são usadas as tabelas exclusivas `oficina-execution-<ambiente>` e `oficina-execution-saga-commands-<ambiente>`. O pod usa a role IAM do ServiceAccount `oficina-execution`, sem credenciais locais; o endpoint local de DynamoDB deve ficar vazio em AWS. A role precisa das ações DynamoDB de criação/consulta/leitura/escrita/transação somente nessas duas tabelas.
+No Kubernetes são usadas as tabelas exclusivas `oficina-execution-<ambiente>` e `oficina-execution-saga-commands-<ambiente>`. O pod usa a role IAM via Pod Identity do ServiceAccount `oficina-execution`, sem credenciais locais; o endpoint local de DynamoDB deve ficar vazio em AWS. O Terraform do serviço cria as tabelas; a role do pod tem somente ações de consulta/leitura/escrita/transação nelas. A aplicação cria tabelas apenas no DynamoDB local.
 
 ## Deploy Kubernetes independente
 
 Os recursos AWS próprios e a ordem de configuração estão em [infra/aws/README.md](infra/aws/README.md). Cada ambiente tem state Terraform e ECR separados; execute o apply apenas após revisão da infraestrutura.
 
-`.github/workflows/deploy.yml` valida lint/cobertura/build, publica uma imagem imutável no ECR e faz o rollout em `homolog`/`main` quando `DEPLOY_ENABLED=true` nas variables do repositório. Configure `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER_NAME`, `DEPLOY_ROLE_ARN`, `SERVICE_ROLE_ARN`, `ECR_REPOSITORY_URL`, `SQS_COMMANDS_QUEUE_URL` e `SQS_RESULTS_QUEUE_URL` como variables e `SAGA_TOKEN` como secret. ECR, roles OIDC, namespace, filas e permissões DynamoDB precisam existir antes da ativação. O Service Kubernetes é interno (`ClusterIP`).
+`.github/workflows/deploy.yml` valida lint/cobertura/build, publica uma imagem imutável no ECR e faz o rollout em `homolog`/`main` quando `DEPLOY_ENABLED=true` nas variables do repositório. Configure `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER_NAME`, `DEPLOY_ROLE_ARN`, `ECR_REPOSITORY_URL`, `SQS_COMMANDS_QUEUE_URL` e `SQS_RESULTS_QUEUE_URL` como variables e `SAGA_TOKEN` como secret. ECR, roles de deploy e Pod Identity, namespace, filas e permissões DynamoDB precisam existir antes da ativação. O Service Kubernetes é interno (`ClusterIP`).
 
 O worker da Saga cria a tabela `execucao_saga_commands` (configurável por `DYNAMODB_SAGA_COMMANDS_TABLE`) para deduplicar `commandId` e guardar o resultado. A gravação do marcador e a abertura/conclusão de etapa são feitas em uma única transação DynamoDB.
 
