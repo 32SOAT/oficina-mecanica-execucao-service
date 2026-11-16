@@ -5,18 +5,17 @@ export function configureSwagger(app: INestApplication): void {
   const config = new DocumentBuilder()
     .setTitle('Execução Service')
     .setDescription(
-      'Dono da fila de execução: diagnóstico, reparo e aviso de conclusão ou falha para o serviço de OS.',
+      'O worker consome comandos e publica resultados por SQS. As rotas HTTP internas de execução estão marcadas como legadas e exigem x-saga-token; o estado da Saga deve ser consultado na API da OS.',
     )
     .setVersion('1.0')
-    .addBearerAuth(
+    .addApiKey(
       {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        description:
-          'JWT emitido pela Lambda de CPF ou pelo login administrativo.',
+        type: 'apiKey',
+        in: 'header',
+        name: 'x-saga-token',
+        description: 'Token para as rotas HTTP internas legadas da Execução.',
       },
-      'JWT-auth',
+      'SagaToken',
     )
     .build();
 
