@@ -33,11 +33,28 @@ O worker da Saga cria a tabela `execucao_saga_commands` (configurável por `DYNA
 
 ## Mensageria da Saga
 
+A Saga é orquestrada pelo OS Service, e este serviço é um participante: recebe comandos pela fila, aplica e devolve o resultado. A justificativa da escolha está no [README do OS Service](https://github.com/32SOAT/oficina-mecanica-os-service#por-que-saga-orquestrada) e na ADR 001 daquele repositório.
+
 O worker SQS aceita abrir, concluir e reabrir diagnóstico/reparo. `EXECUTION_REOPEN` é a compensação enviada pela OS quando a etapa seguinte do Billing falha; ela muda `CONCLUIDA` para `ABERTA` somente com atualização condicional. A mudança na tabela `execucao` e o marcador idempotente por `commandId` são gravados na mesma transação DynamoDB. Em uma redelivery ele reutiliza o resultado persistido; só confirma a mensagem depois de publicar o resultado na fila da OS. Mensagens inválidas seguem para a DLQ pela política de redrive.
 
 Uma nova conclusão com outro `commandId` para etapa já `CONCLUIDA` retorna falha de negócio. O replay do comando original retorna seu resultado gravado, sem repetir a mutação.
 
 O `.env.example` inclui endpoint, região e URLs das filas FIFO. Para iniciar o worker, defina `SQS_WORKER_ENABLED=true` depois de copiar o arquivo para `.env` e confirmar que filas, DLQs e permissões já estão disponíveis. Localmente, as filas são criadas pelo Floci no compose do OS Service (`docker compose up -d db floci`, dentro de `oficina-mecanica-os-service`). Em AWS, configure as URLs de saída do Terraform, deixe `SQS_ENDPOINT_URL` vazio/ausente e use a role IAM do serviço. A OS publica comandos pela outbox SQS. Consulte o [guia de operação da Saga](../oficina-mecanica-os-service/docs/operacao-saga-sqs.md) para a ordem de rollout, reconciliação e redrive seguro.
+
+## Testes e cobertura
+
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=32SOAT_oficina-mecanica-execucao-service&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=32SOAT_oficina-mecanica-execucao-service)
+[![Cobertura](https://sonarcloud.io/api/project_badges/measure?project=32SOAT_oficina-mecanica-execucao-service&metric=coverage)](https://sonarcloud.io/component_measures?id=32SOAT_oficina-mecanica-execucao-service&metric=coverage)
+
+O CI (`.github/workflows/ci.yml`) roda os testes com cobertura e o SonarCloud em todo PR. O Jest falha abaixo de 80% (`coverageThreshold` no `package.json`) e o pipeline espera o quality gate do SonarCloud.
+
+Cobertura do Jest na [execução do CI de 17/11/2026](https://github.com/32SOAT/oficina-mecanica-execucao-service/actions/runs/44019081970), com 49 testes:
+
+| Instruções | Ramos | Funções | Linhas |
+| --- | --- | --- | --- |
+| 94,49% | 83,56% | 94,59% | 94,83% |
+
+Para conferir localmente: `npm run test:cov`.
 
 ## Observabilidade
 
