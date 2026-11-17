@@ -11,7 +11,7 @@ spec:
     metadata:
       labels:
         app: oficina-execution
-        tags.datadoghq.com/service: oficina-mecanica-execucao-service
+        tags.datadoghq.com/service: oficina-execution
     spec:
       serviceAccountName: oficina-execution
       securityContext:
@@ -32,7 +32,7 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             - name: DD_SERVICE
-              value: oficina-mecanica-execucao-service
+              value: oficina-execution
             - name: DD_LOGS_INJECTION
               value: "true"
           envFrom:
