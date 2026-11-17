@@ -31,12 +31,6 @@ Os recursos AWS próprios e a ordem de configuração estão em [infra/aws/READM
 
 O worker da Saga cria a tabela `execucao_saga_commands` (configurável por `DYNAMODB_SAGA_COMMANDS_TABLE`) para deduplicar `commandId` e guardar o resultado. A gravação do marcador e a abertura/conclusão de etapa são feitas em uma única transação DynamoDB.
 
-### Deploy automatizado em cluster temporário
-
-[![Deploy Kubernetes (kind)](https://github.com/32SOAT/oficina-mecanica-execucao-service/actions/workflows/deploy-kind.yml/badge.svg)](https://github.com/32SOAT/oficina-mecanica-execucao-service/actions/workflows/deploy-kind.yml)
-
-`.github/workflows/deploy-kind.yml` roda em todo PR e em `homolog`/`main`, sem depender da AWS. Ele executa o lint e os testes com cobertura, constrói a imagem, cria um cluster Kubernetes com `kind`, aplica `kubernetes/overlays/minikube`, espera o rollout e confere o health de dentro do cluster. O consumidor SQS fica desligado nesse job, porque as filas ficam no overlay do OS Service. Exemplo: [execução de 17/11/2026](https://github.com/32SOAT/oficina-mecanica-execucao-service/actions/runs/44022569322).
-
 ## Mensageria da Saga
 
 A Saga é orquestrada pelo OS Service, e este serviço é um participante: recebe comandos pela fila, aplica e devolve o resultado. A justificativa da escolha está no [README do OS Service](https://github.com/32SOAT/oficina-mecanica-os-service#por-que-saga-orquestrada) e na ADR 001 daquele repositório.
