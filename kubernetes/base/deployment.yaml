@@ -11,6 +11,7 @@ spec:
     metadata:
       labels:
         app: oficina-execution
+        tags.datadoghq.com/service: oficina-execution
     spec:
       serviceAccountName: oficina-execution
       securityContext:
@@ -25,6 +26,15 @@ spec:
           ports:
             - name: http
               containerPort: 3000
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_SERVICE
+              value: oficina-execution
+            - name: DD_LOGS_INJECTION
+              value: "true"
           envFrom:
             - configMapRef:
                 name: oficina-execution-config

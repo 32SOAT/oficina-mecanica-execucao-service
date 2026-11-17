@@ -1,0 +1,45 @@
+# The SQS endpoint (floci) comes from the os-service minikube overlay: apply that one first.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: oficina-mecanica
+resources:
+  - namespace.yaml
+  - ../../base
+  - dynamodb.yaml
+images:
+  - name: oficina-execution
+    newName: oficina-mecanica-execucao-service
+    newTag: local
+configMapGenerator:
+  - name: oficina-execution-config
+    literals:
+      - NODE_ENV=production
+      - APP_PORT=3000
+      - DYNAMODB_ENDPOINT=http://execucao-dynamodb:8000
+      - DYNAMODB_REGION=us-east-1
+      - DYNAMODB_TABLE=execucao
+      - DYNAMODB_SAGA_COMMANDS_TABLE=execucao_saga_commands
+      - SQS_ENDPOINT_URL=http://floci:4566
+      - SQS_REGION=us-east-1
+      - SQS_WORKER_ENABLED=true
+      - SQS_COMMANDS_QUEUE_URL=http://floci:4566/000000000000/oficina-execution-commands.fifo
+      - SQS_RESULTS_QUEUE_URL=http://floci:4566/000000000000/oficina-os-results.fifo
+      - DD_ENV=local
+      - DD_VERSION=local
+secretGenerator:
+  - name: oficina-execution-secret
+    literals:
+      - SAGA_TOKEN=oficina-local
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+patches:
+  - target:
+      kind: Service
+      name: oficina-execution
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30083

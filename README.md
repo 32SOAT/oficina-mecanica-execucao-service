@@ -33,11 +33,39 @@ O worker da Saga cria a tabela `execucao_saga_commands` (configurável por `DYNA
 
 ## Mensageria da Saga
 
+A Saga é orquestrada pelo OS Service, e este serviço é um participante: recebe comandos pela fila, aplica e devolve o resultado. A justificativa da escolha está no [README do OS Service](https://github.com/32SOAT/oficina-mecanica-os-service#por-que-saga-orquestrada) e na ADR 001 daquele repositório.
+
 O worker SQS aceita abrir, concluir e reabrir diagnóstico/reparo. `EXECUTION_REOPEN` é a compensação enviada pela OS quando a etapa seguinte do Billing falha; ela muda `CONCLUIDA` para `ABERTA` somente com atualização condicional. A mudança na tabela `execucao` e o marcador idempotente por `commandId` são gravados na mesma transação DynamoDB. Em uma redelivery ele reutiliza o resultado persistido; só confirma a mensagem depois de publicar o resultado na fila da OS. Mensagens inválidas seguem para a DLQ pela política de redrive.
 
 Uma nova conclusão com outro `commandId` para etapa já `CONCLUIDA` retorna falha de negócio. O replay do comando original retorna seu resultado gravado, sem repetir a mutação.
 
 O `.env.example` inclui endpoint, região e URLs das filas FIFO. Para iniciar o worker, defina `SQS_WORKER_ENABLED=true` depois de copiar o arquivo para `.env` e confirmar que filas, DLQs e permissões já estão disponíveis. Localmente, as filas são criadas pelo Floci no compose do OS Service (`docker compose up -d db floci`, dentro de `oficina-mecanica-os-service`). Em AWS, configure as URLs de saída do Terraform, deixe `SQS_ENDPOINT_URL` vazio/ausente e use a role IAM do serviço. A OS publica comandos pela outbox SQS. Consulte o [guia de operação da Saga](../oficina-mecanica-os-service/docs/operacao-saga-sqs.md) para a ordem de rollout, reconciliação e redrive seguro.
+
+## Testes e cobertura
+
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=32SOAT_oficina-mecanica-execucao-service&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=32SOAT_oficina-mecanica-execucao-service)
+[![Cobertura](https://sonarcloud.io/api/project_badges/measure?project=32SOAT_oficina-mecanica-execucao-service&metric=coverage)](https://sonarcloud.io/component_measures?id=32SOAT_oficina-mecanica-execucao-service&metric=coverage)
+
+O CI (`.github/workflows/ci.yml`) roda os testes com cobertura e o SonarCloud em todo PR. O Jest falha abaixo de 80% (`coverageThreshold` no `package.json`) e o pipeline espera o quality gate do SonarCloud.
+
+Cobertura do Jest na [execução do CI de 17/11/2026](https://github.com/32SOAT/oficina-mecanica-execucao-service/actions/runs/44019081970), com 49 testes:
+
+| Instruções | Ramos | Funções | Linhas |
+| --- | --- | --- | --- |
+| 94,49% | 83,56% | 94,59% | 94,83% |
+
+Para conferir localmente: `npm run test:cov`.
+
+## Observabilidade
+
+O serviço envia traces e logs para o Datadog, a mesma ferramenta da Fase 3.
+
+- **Traces:** o `dd-trace` é carregado na inicialização (`--require dd-trace/init`). Cada comando da Saga roda no span `saga.command`, que continua o trace iniciado na OS (`src/saga/sqs/saga-trace.ts`). A etapa aparece num trace só: OS, fila, Execução, fila e OS.
+- **Logs:** saem em JSON com o identificador do trace (`dd.trace_id`), então cada log leva ao seu trace. O nível sai como texto (`error`, `warn`), que é como o Datadog reconhece o status.
+
+No Kubernetes, `kubernetes/base/deployment.yaml` aponta o tracer para o Agent do nó (`DD_AGENT_HOST`) e define `DD_SERVICE=oficina-execution`; `DD_ENV` e `DD_VERSION` vêm do `scripts/deploy-kubernetes.sh`. Sem Agent, o serviço roda igual e não envia nada.
+
+Os valores do Agent, o dashboard e os monitores ficam em `kubernetes/datadog` no repositório [oficina-mecanica-infra-k8s](https://github.com/32SOAT/oficina-mecanica-infra-k8s). Os prints do dashboard e de um trace da Saga estão no [README do OS Service](https://github.com/32SOAT/oficina-mecanica-os-service#observabilidade).
 
 ## Execução local
 
@@ -54,3 +82,12 @@ npm run start:dev
 - A conclusão de cada etapa também chega por comando SQS, com o mesmo fluxo de resultado correlacionado.
 
 As chamadas HTTP internas legadas, quando usadas diretamente, exigem `x-saga-token: oficina-local`; o fluxo da Saga usa IAM e filas SQS.
+
+## Cluster local (minikube)
+
+O overlay `kubernetes/overlays/minikube` reaproveita o `kubernetes/base` e acrescenta só o que é local: imagem, variáveis, o DynamoDB Local e a porta 30083. Aplique antes o overlay do OS Service, que traz o SQS local (Floci).
+
+```bash
+minikube image build -t oficina-mecanica-execucao-service:local .
+kubectl apply -k kubernetes/overlays/minikube
+```

@@ -16,6 +16,7 @@ umask 077
 printf 'NODE_ENV=production\nAPP_PORT=3000\n' > "$work_dir/config.env"
 for key in DYNAMODB_REGION DYNAMODB_TABLE DYNAMODB_SAGA_COMMANDS_TABLE SQS_COMMANDS_QUEUE_URL SQS_RESULTS_QUEUE_URL SQS_WORKER_ENABLED; do printf '%s=%s\n' "$key" "${!key}" >> "$work_dir/config.env"; done
 printf 'SQS_REGION=%s\n' "${AWS_REGION}" >> "$work_dir/config.env"
+printf 'DD_ENV=%s\nDD_VERSION=%s\n' "$DEPLOY_ENV" "${GITHUB_SHA:-local}" >> "$work_dir/config.env"
 printf 'SAGA_TOKEN=%s\n' "$SAGA_TOKEN" >> "$work_dir/secret.env"
 kubectl -n "$namespace" create configmap "$service_name-config" --from-env-file="$work_dir/config.env" --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n "$namespace" create secret generic "$service_name-secret" --from-env-file="$work_dir/secret.env" --dry-run=client -o yaml | kubectl apply -f -
