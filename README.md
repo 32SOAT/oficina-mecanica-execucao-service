@@ -39,6 +39,17 @@ Uma nova conclusão com outro `commandId` para etapa já `CONCLUIDA` retorna fal
 
 O `.env.example` inclui endpoint, região e URLs das filas FIFO. Para iniciar o worker, defina `SQS_WORKER_ENABLED=true` depois de copiar o arquivo para `.env` e confirmar que filas, DLQs e permissões já estão disponíveis. Localmente, as filas são criadas pelo Floci no compose do OS Service (`docker compose up -d db floci`, dentro de `oficina-mecanica-os-service`). Em AWS, configure as URLs de saída do Terraform, deixe `SQS_ENDPOINT_URL` vazio/ausente e use a role IAM do serviço. A OS publica comandos pela outbox SQS. Consulte o [guia de operação da Saga](../oficina-mecanica-os-service/docs/operacao-saga-sqs.md) para a ordem de rollout, reconciliação e redrive seguro.
 
+## Observabilidade
+
+O serviço envia traces e logs para o Datadog, a mesma ferramenta da Fase 3.
+
+- **Traces:** o `dd-trace` é carregado na inicialização (`--require dd-trace/init`). Cada comando da Saga roda no span `saga.command`, que continua o trace iniciado na OS (`src/saga/sqs/saga-trace.ts`). A etapa aparece num trace só: OS, fila, Execução, fila e OS.
+- **Logs:** saem em JSON com o identificador do trace (`dd.trace_id`), então cada log leva ao seu trace. O nível sai como texto (`error`, `warn`), que é como o Datadog reconhece o status.
+
+No Kubernetes, `kubernetes/base/deployment.yaml` aponta o tracer para o Agent do nó (`DD_AGENT_HOST`) e define `DD_SERVICE=oficina-execution`; `DD_ENV` e `DD_VERSION` vêm do `scripts/deploy-kubernetes.sh`. Sem Agent, o serviço roda igual e não envia nada.
+
+Os valores do Agent, o dashboard e os monitores ficam em `kubernetes/datadog` no repositório [oficina-mecanica-infra-k8s](https://github.com/32SOAT/oficina-mecanica-infra-k8s). Os prints do dashboard e de um trace da Saga estão no [README do OS Service](https://github.com/32SOAT/oficina-mecanica-os-service#observabilidade).
+
 ## Execução local
 
 ```bash
@@ -54,3 +65,12 @@ npm run start:dev
 - A conclusão de cada etapa também chega por comando SQS, com o mesmo fluxo de resultado correlacionado.
 
 As chamadas HTTP internas legadas, quando usadas diretamente, exigem `x-saga-token: oficina-local`; o fluxo da Saga usa IAM e filas SQS.
+
+## Cluster local (minikube)
+
+O overlay `kubernetes/overlays/minikube` reaproveita o `kubernetes/base` e acrescenta só o que é local: imagem, variáveis, o DynamoDB Local e a porta 30083. Aplique antes o overlay do OS Service, que traz o SQS local (Floci).
+
+```bash
+minikube image build -t oficina-mecanica-execucao-service:local .
+kubectl apply -k kubernetes/overlays/minikube
+```
